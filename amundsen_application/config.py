@@ -1,12 +1,19 @@
 import os
+from typing import Any, Tuple
 from typing import Callable, Dict, Optional, Set  # noqa: F401
 
 from flask import Flask  # noqa: F401
 
 from amundsen_application.tests.test_utils import get_test_user
 
+from flaskoidc.config import BaseConfig
 
-class Config:
+import logging
+
+LOGGER = logging.getLogger(__name__)
+
+
+class Config(BaseConfig):
     LOG_FORMAT = '%(asctime)s.%(msecs)03d [%(levelname)s] %(module)s.%(funcName)s:%(lineno)d (%(process)d:' \
                  + '%(threadName)s) - %(message)s'
     LOG_DATE_FORMAT = '%Y-%m-%dT%H:%M:%S%z'
@@ -25,9 +32,56 @@ class Config:
     MAIL_CLIENT = None
     NOTIFICATIONS_ENABLED = False
 
-    # Initialize custom routes
-    INIT_CUSTOM_ROUTES = None  # type: Callable[[Flask], None]
+    # Flask `SECRET_KEY` config value
+    FLASK_OIDC_SECRET_KEY: 'base-flask-oidc-secret-key'
 
+    # Comma separated string of URLs which should be exposed without authentication, else all request will be authenticated.
+    FLASK_OIDC_WHITELISTED_ENDPOINTS: "healthcheck"
+
+    # Path of your configuration file. (default value assumes you have a `config/client_secrets.json` available.
+    FLASK_OIDC_CLIENT_SECRETS: 'config/client_secrets.json'
+
+    # Details about this below in the "Session Management" section.
+    FLASK_OIDC_SQLALCHEMY_DATABASE_URI: 'postgresql://amundsen:amundsen@db.amundsensession.dev:5432/amundsen'
+
+
+def private(app):
+    return str(app.oidc.user_getinfo)
+
+def custom_routes(app: Flask) -> Any:
+    app.add_url_rule('/private', 'private', lambda : private(app))
+
+def get_access_headers(app):
+    """
+    Function to retrieve and format the Authorization Headers
+    that can be passed to various microservices who are expecting that.
+    :param oidc: OIDC object having authorization information
+    :return: A formatted dictionary containing access token
+    as Authorization header.
+    """
+
+    try:
+        access_token = app.oidc.get_access_token()
+        return {'Authorization': 'Bearer {}'.format(access_token)}
+    except Exception:
+        return None
+
+def get_auth_user(app):
+    """
+    Retrieves the user information from oidc token, and then makes
+    a dictionary 'UserInfo' from the token information dictionary.
+    We need to convert it to a class in order to use the information
+    in the rest of the Amundsen application.
+    :param app: The instance of the current app.
+    :return: A class UserInfo
+    """
+
+    from flask import g
+    user_info = type('UserInfo', (object,), g.oidc_id_token)
+
+    # noinspection PyUnresolvedReferences
+    user_info.user_id = user_info.preferred_username
+    return user_info
 
 class LocalConfig(Config):
     DEBUG = False
@@ -69,10 +123,13 @@ class LocalConfig(Config):
     # Please note that if specified, this will ignore following config properties:
     # 1. METADATASERVICE_REQUEST_HEADERS
     # 2. SEARCHSERVICE_REQUEST_HEADERS
-    REQUEST_HEADERS_METHOD = None
+    REQUEST_HEADERS_METHOD = get_access_headers
 
-    AUTH_USER_METHOD = None  # type: Optional[function]
+    AUTH_USER_METHOD = get_auth_user
     GET_PROFILE_URL = None
+
+     # Initialize custom routes
+    INIT_CUSTOM_ROUTES = custom_routes  # type: Callable[[Flask], None]
 
 
 class TestConfig(LocalConfig):
