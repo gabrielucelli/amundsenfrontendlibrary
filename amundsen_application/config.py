@@ -46,10 +46,15 @@ class Config(BaseConfig):
 
 
 def private(app):
-    return str(app.oidc.user_getinfo)
+    return str(app.oidc.user_getfield('email'))
+
+def logout(app):
+    app.oidc.logout()
+    return 'Hi, you have been logged out! <a href="/">Return</a>'
 
 def custom_routes(app: Flask) -> Any:
     app.add_url_rule('/private', 'private', lambda : private(app))
+    app.add_url_rule('/logout2', 'logout2', lambda : logout(app))
 
 def get_access_headers(app):
     """
@@ -80,7 +85,7 @@ def get_auth_user(app):
     user_info = type('UserInfo', (object,), g.oidc_id_token)
 
     # noinspection PyUnresolvedReferences
-    user_info.user_id = user_info.preferred_username
+    user_info.user_id = user_info.email
     return user_info
 
 class LocalConfig(Config):
