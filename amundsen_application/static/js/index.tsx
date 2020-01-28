@@ -9,8 +9,6 @@ import { createStore, applyMiddleware } from 'redux';
 import { Router, Route, Switch } from 'react-router-dom';
 import DocumentTitle from 'react-document-title';
 
-import { feedbackEnabled } from 'config/config-utils';
-
 import AnnouncementPage from './components/AnnouncementPage';
 import BrowsePage from './components/BrowsePage';
 import Footer from './components/Footer';
@@ -40,7 +38,7 @@ ReactDOM.render(
           <Preloader/>
           <Route component={NavBar} />
           <Switch>
-            <Route path="/table_detail/:cluster/:db/:schema/:table" component={TableDetail} />
+            <Route path="/table_detail/:cluster/:database/:schema/:table" component={TableDetail} />
             <Route path="/announcements" component={AnnouncementPage} />
             <Route path="/browse" component={BrowsePage} />
             <Route path="/search" component={SearchPage} />
